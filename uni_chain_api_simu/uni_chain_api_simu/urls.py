@@ -20,5 +20,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/', include('accounts.urls'), name="accounts-routes"),
     path('api/v1/', include('wallets.urls'), name="user-wallets"),
-    path('api/v1/', include('institutions.urls'), name="institutions"),
+    path('api/v1/', include('cartificates.urls'), name="certificates"),
+    # path('api/v1/', include('institutions.urls'), name="institutions"),
 ]

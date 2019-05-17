@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'accounts',
     'institutions',
     'wallets',
+    'certificates',
     'rest_framework',
 ]
 

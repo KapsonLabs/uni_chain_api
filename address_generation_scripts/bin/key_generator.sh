@@ -13,6 +13,6 @@ public_key=openssl ec -inform DER -text -noout -in <(cat <(echo -n "e3b0c44298fc
 
 #keys+=(private_key)
 
-echo $private_key
+echo $public_key
 
 #echo ${Keys[@]}

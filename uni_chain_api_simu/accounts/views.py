@@ -1,3 +1,7 @@
+import sys
+import json
+import re
+
 from accounts.models import User
 from django.contrib.auth import authenticate, login
 from rest_framework_jwt.settings import api_settings
@@ -79,7 +83,12 @@ class RegisterView(generics.CreateAPIView):
 
         serializer = CreateUserSerializer(data=user_data)
         if serializer.is_valid():
-            serializer.save(is_student=True)
+            if role[0]=='STUDENT':
+                serializer.save(is_student=True)
+            elif role[0]=='EMPLOYER':
+                serializer.save(is_employer=True)
+            else:
+                serializer.save(is_institution=True)
 
             user = User.objects.get(pk=serializer.data['id'])
 
@@ -89,7 +98,7 @@ class RegisterView(generics.CreateAPIView):
             ####################################################################
             """
 
-            command = ["bash","/Users/allan-only/projects/blockchain/uni-chain-api/uni_chain_api_simu/sorcery_scripts/bin/hello_sorcery.sh"]
+            command = ["zsh","/Users/allan-only/projects/blockchain/uni-chain-api/uni_chain_api_simu/sorcery_scripts/bin/address_script.sh", "1"]
             try:
                     process = Popen(command, stdout=PIPE, stderr=STDOUT)
                     output = process.stdout.read()
@@ -102,7 +111,13 @@ class RegisterView(generics.CreateAPIView):
             except Exception as e:
                     result =  {"status": "failed", "output":str(e)}
 
-            print(result['output'].decode()[9:])
+            keys = result['output'].decode()
+            # print(keys)
+            # print(type(keys))
+
+            regex = re.compile(r"\b(\w+)\s*:\s*([^:]*)(?=\s+\w+\s*:|$)")
+            keys_dict = dict(regex.findall(keys))
+            # print(keys_dict)
 
             """
             ###################################################################
@@ -113,9 +128,9 @@ class RegisterView(generics.CreateAPIView):
 
             user_wallet = {
                 "wallet_number":wallet_number,
-                "wallet_address":result['output'].decode()[9:],
-                "wallet_private_key":result['output'].decode()[9:],
-                "wallet_public_key":result['output'].decode()[9:],
+                "wallet_address":keys_dict['Address'],
+                "wallet_private_key":keys_dict['Private_Key_WIF'],
+                "wallet_public_key":keys_dict['Public_Key_Hash'],
             }
 
             wallet_creation = WalletsSerializer(data=user_wallet)

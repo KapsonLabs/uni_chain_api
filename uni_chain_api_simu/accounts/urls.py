@@ -4,4 +4,5 @@ from .views import LoginView, RegisterView
 urlpatterns = [
     path('auth/login/', LoginView.as_view(), name="auth-login"),
     path('auth/register/', RegisterView.as_view(), name="auth-register"),
+    path('institution/onboard/', RegisterView.as_view(), name="institution_onboard"),
 ]
