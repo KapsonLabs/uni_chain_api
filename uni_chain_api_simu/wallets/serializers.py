@@ -2,6 +2,8 @@ from rest_framework import serializers
 
 from .models import Wallet, WalletTransactions, PayTokens, EscrowTransactions
 from accounts.serializers import UserDetailSerializer
+from certificates.serializers import AddressSerializer, DocumentUploadSerializer
+from certificates.models import CertificateViewRequests
 
 class WalletsSerializer(serializers.ModelSerializer):
     """
@@ -18,10 +20,27 @@ class WalletNumberSerializer(serializers.Serializer):
     wallet_address = serializers.CharField(max_length=250)
     amount_to_load  = serializers.CharField(max_length=10)
 
+class WalletAddressSerializer(serializers.ModelSerializer):
+    """
+    A wallet address serializer
+    """
+    class Meta:
+        model = Wallet
+        fields = ('wallet_address', )
+
     # def validate_amount_number(self, value):
     #     if len(value) != 8:
     #        raise serializers.ValidationError("Invalid/wrong account number entered")
     #     return value 
+
+class WalletBalanceSerializer(serializers.ModelSerializer):
+    """
+    A wallet balance serializer
+    """
+
+    class Meta:
+        model=Wallet
+        fields=('wallet_balance',)
 
 class WalletDetailsSeriliazer(serializers.ModelSerializer):
     """
@@ -41,7 +60,7 @@ class WalletTransactionsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WalletTransactions
-        fields = ('transaction_type','transaction_amount', 'output_wallet_address', 'input_wallet_address')
+        fields = ('transaction_type','transaction_amount', 'output_wallet_address', 'input_wallet_address', 'transaction_id')
 
 class WalletTransactionsDetailSerializer(serializers.Serializer):
     """
@@ -51,7 +70,17 @@ class WalletTransactionsDetailSerializer(serializers.Serializer):
     input_wallet_address        = serializers.CharField(max_length=255)
     transaction_type            = serializers.CharField(max_length=255)
     transaction_amount          = serializers.DecimalField(max_digits=20, decimal_places=3)
+    transaction_id              = serializers.CharField(max_length=255)
 
+class EscrowTransactionDetailSerializer(serializers.Serializer):
+    """
+    An escrow transaction detail seriliazer
+    """
+    output_wallet_address       = serializers.CharField(max_length=255)
+    input_wallet_address        = serializers.CharField(max_length=255)
+    transaction_type            = serializers.CharField(max_length=255)
+    transaction_id              = serializers.CharField(max_length=255)
+    transaction_amount          = serializers.DecimalField(max_digits=20, decimal_places=3)
 
 class PayTokenAddressSerializer(serializers.Serializer):
     """
@@ -77,11 +106,53 @@ class PayTokensDetailSerializer(serializers.Serializer):
     token_expected_amount               = serializers.DecimalField(max_digits=20, decimal_places=3)
     token_expiry_date                   = serializers.DateTimeField()
 
+class DocumentVerificationRequestSerializer(serializers.ModelSerializer):
+    """
+    A document verification request serializer
+    """
+
+    # document_id         = DocumentUploadSerializer(read_only=True)
+    # verifying_entity    = WalletAddressSerializer(read_only=True)
+    # requesting_entity   = WalletAddressSerializer(read_only=True)
+
+    class Meta:
+        model = CertificateViewRequests
+        fields = ("id", "document_id","verifying_entity","requesting_entity")
+
+
+class DocumentVerificationRequestDataSerializer(serializers.ModelSerializer):
+    """
+    A document verification request serializer
+    """
+
+    document_id         = DocumentUploadSerializer(read_only=True)
+    verifying_entity    = WalletAddressSerializer(read_only=True)
+    requesting_entity   = WalletAddressSerializer(read_only=True)
+
+    class Meta:
+        model = CertificateViewRequests
+        fields = ("id", "document_id","verifying_entity","requesting_entity")
+        
+
 class EscrowTransactionsSerializer(serializers.ModelSerializer):
     """
     A serializer for escrow transactions
     """
+    # output_wallet_address   = WalletAddressSerializer()
+    # input_wallet_address    = WalletAddressSerializer()
 
     class Meta:
         model = EscrowTransactions
         fields = ("output_wallet_address","input_wallet_address","transaction_id","transaction_type","amount_initiated")
+
+class WalletTransactionsHistorySerialiazer(serializers.ModelSerializer):
+    """
+    A wallet serialiazer to serialize wallet histroy transactions
+    """
+    output_wallet_address   = WalletAddressSerializer(read_only=True)
+    input_wallet_address    = WalletAddressSerializer(read_only=True)
+
+    class Meta:
+        model = WalletTransactions
+        fields = ('output_wallet_address', 'input_wallet_address', 'transaction_id', 'transaction_type', 'transaction_amount', 'date_transacted')
+

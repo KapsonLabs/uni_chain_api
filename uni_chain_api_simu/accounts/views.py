@@ -13,7 +13,8 @@ from rest_framework.response import Response
 
 from .serializers import CreateUserSerializer
 from wallets.helpers import generate_account_number
-from wallets.serializers import WalletsSerializer
+from wallets.serializers import WalletsSerializer, WalletDetailsSeriliazer
+from wallets.models import Wallet
 
 #
 """
@@ -59,14 +60,21 @@ class LoginView(generics.CreateAPIView):
             # login saves the user’s ID in the session,
             # using Django’s session framework.
             login(request, user)
+
+            user_data = User.objects.get(username=username)
+            related_wallet = Wallet.objects.get(wallet_owner=user_data)
+
+            related_wallet_details = WalletDetailsSeriliazer(related_wallet)
+
             token_serializer = TokenSerializer(data={
                 # using drf jwt utility functions to generate a token
                 "token": jwt_encode_handler(
                     jwt_payload_handler(user)
                 )})
             token_serializer.is_valid()
-            return Response(token_serializer.data)
-        return Response(status=status.HTTP_404_NOT_FOUND)
+            data_dict = {"status":200, "data": {"wallet":related_wallet_details.data, "token":token_serializer.data}}
+            return Response(data_dict, status=status.HTTP_200_OK)
+        return Response({"status":404, "error":"username or password incorrect"}, status=status.HTTP_404_NOT_FOUND)
 
 class RegisterView(generics.CreateAPIView):
     """

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from accounts.models import User
+from wallets.models import Wallet
 
 class TokenSerializer(serializers.Serializer):
     """

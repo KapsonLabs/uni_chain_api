@@ -11,10 +11,11 @@ from rest_framework import serializers
 from rest_framework import status
 from rest_framework import permissions
 
-from accounts.permissions import StudentPermissions, EmployerPermissions
-from .models import Wallet, WalletTransactions
+from accounts.permissions import StudentPermissions, EmployerPermissions, InstitutionEmployerStudentPermissions, InstitutionAdministratorPermissions
+from .models import Wallet, WalletTransactions, EscrowTransactions
 from certificates.models import CertificateFeesSettings
-from .serializers import WalletNumberSerializer, WalletTransactionsSerializer, WalletDetailsSeriliazer, PayTokensSerializer, WalletTransactionsDetailSerializer, PayTokenAddressSerializer, PayTokensDetailSerializer
+from certificates.serializers import AddressSerializer
+from .serializers import WalletNumberSerializer, WalletTransactionsSerializer, WalletDetailsSeriliazer, PayTokensSerializer, WalletTransactionsDetailSerializer, PayTokenAddressSerializer, PayTokensDetailSerializer, WalletBalanceSerializer, WalletTransactionsHistorySerialiazer, EscrowTransactionsSerializer
 
 from .helpers import generate_pay_id, generate_transaction_id
 
@@ -52,6 +53,7 @@ class WalletTopUp(generics.CreateAPIView):
                     "output_wallet_address":admin_wallet.pk,
                     "input_wallet_address":related_wallet_updated.pk,
                     "transaction_type":'TOP-UP',
+                    "transaction_id":str(generate_transaction_id()),
                     "transaction_amount":wallet_top_up.data['amount_to_load'],
                 }
 
@@ -64,6 +66,7 @@ class WalletTopUp(generics.CreateAPIView):
                     "input_wallet_address":related_wallet_updated.wallet_address,
                     "transaction_type":'TOP-UP',
                     "transaction_amount":wallet_top_up.data['amount_to_load'],
+                    "transaction_id":wallet_transaction.data['transaction_id'],
                 }
 
                 wallet_details = WalletDetailsSeriliazer(related_wallet_updated)
@@ -103,7 +106,7 @@ class IssuePayToken(generics.CreateAPIView):
 
             transaction_id = generate_transaction_id()
             
-            pay_id         = generate_pay_id(transaction_id, student_wallet.wallet_public_key)
+            pay_id         = generate_pay_id(transaction_id, addresses.data['institution_wallet_address'], student_wallet.wallet_public_key)
 
             token_data = {
                     "issued_to_address":student_wallet.pk,
@@ -129,6 +132,68 @@ class IssuePayToken(generics.CreateAPIView):
             data_dict = {"status":201, "token_data":token_details_json.data}
             return Response(data_dict, status=status.HTTP_201_CREATED)
         return Response(addresses.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WalletBalance(APIView):
+    permission_classes = (permissions.IsAuthenticated, InstitutionEmployerStudentPermissions)
+
+    def post(self, request):
+        address = AddressSerializer(data=request.data)
+        if address.is_valid():
+            try:
+                account_balance = Wallet.objects.get(wallet_address=address.data['wallet_address'])
+
+                balance_serializer = WalletBalanceSerializer(account_balance)
+
+                data_dict = {"status":200, "data":balance_serializer.data}
+                return Response(data_dict, status=status.HTTP_200_OK)
+            except:
+                data_dict = {"status":404, "error":"wallet address doesnot exist"}
+                return Response(data_dict, status=status.HTTP_404_NOT_FOUND)
+        return Response(address.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WalletTransactionHistory(APIView):
+    permission_classes = (permissions.IsAuthenticated, InstitutionEmployerStudentPermissions)
+
+    def post(self, request):
+        address = AddressSerializer(data=request.data)
+        if address.is_valid():
+            try:
+                wallet = Wallet.objects.get(wallet_address=address.data['wallet_address'])
+
+                wallet_transactions = WalletTransactions.objects.filter(input_wallet_address=wallet)
+
+                wallet_transaction_serializer = WalletTransactionsHistorySerialiazer(wallet_transactions, many=True)
+
+                data_dict = {"status":200, "data":wallet_transaction_serializer.data}
+                return Response(data_dict, status=status.HTTP_200_OK)
+            except:
+                data_dict = {"status":404, "error":"wallet address doesnot exist"}
+                return Response(data_dict, status=status.HTTP_404_NOT_FOUND)
+        return Response(wallet_transactions.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WalletEscrowTransactions(APIView):
+    permission_classes = (permissions.IsAuthenticated, InstitutionAdministratorPermissions)
+
+    def post(self, request):
+        address = AddressSerializer(data=request.data)
+        if address.is_valid():
+            try:
+                wallet = Wallet.objects.get(wallet_address=address.data['wallet_address'])
+
+                wallet_escrow_transactions = EscrowTransactions.objects.filter(input_wallet_address=wallet)
+
+                escrow_transaction_serializer = EscrowTransactionsSerializer(wallet_escrow_transactions, many=True)
+
+                data_dict = {"status":200, "data":escrow_transaction_serializer.data}
+                return Response(data_dict, status=status.HTTP_200_OK)
+            except:
+                data_dict = {"status":404, "error":"wallet address doesnot exist"}
+                return Response(data_dict, status=status.HTTP_404_NOT_FOUND)
+        return Response(escrow_transaction_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
