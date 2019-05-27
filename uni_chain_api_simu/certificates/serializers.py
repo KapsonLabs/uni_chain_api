@@ -51,5 +51,15 @@ class CertificateUploadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Certificate
-        fields = ('certificate_link', 'student_name', 'student_number')
+        fields = ('id', 'certificate_link', 'student_name', 'student_number')
+
+
+class CertificateDetailSerializer(serializers.ModelSerializer):
+    """
+    Cerificate upload serializer
+    """
+
+    class Meta:
+        model = Certificate
+        fields = ('certificate_unique_hash', )
 

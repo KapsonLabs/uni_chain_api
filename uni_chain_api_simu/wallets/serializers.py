@@ -117,7 +117,7 @@ class DocumentVerificationRequestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CertificateViewRequests
-        fields = ("id", "document_id","verifying_entity","requesting_entity")
+        fields = ("id", "document_id","verifying_entity","requesting_entity", "escrow_transaction_related")
 
 
 class DocumentVerificationRequestDataSerializer(serializers.ModelSerializer):
@@ -132,7 +132,7 @@ class DocumentVerificationRequestDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = CertificateViewRequests
         fields = ("id", "document_id","verifying_entity","requesting_entity")
-        
+
 
 class EscrowTransactionsSerializer(serializers.ModelSerializer):
     """
@@ -143,7 +143,7 @@ class EscrowTransactionsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EscrowTransactions
-        fields = ("output_wallet_address","input_wallet_address","transaction_id","transaction_type","amount_initiated")
+        fields = ("id","output_wallet_address","input_wallet_address","transaction_id","transaction_type","amount_initiated")
 
 class WalletTransactionsHistorySerialiazer(serializers.ModelSerializer):
     """

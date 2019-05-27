@@ -1,7 +1,7 @@
 from django.db import models
 from accounts.models import User
 from institutions.models import Institution
-from wallets.models import Wallet
+from wallets.models import Wallet, EscrowTransactions
 
 class Documents(models.Model):
     document_owner              = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='document_owner_wallet')
@@ -28,6 +28,7 @@ class CertificateViewRequests(models.Model):
     certificate_id                  = models.ForeignKey(Certificate, on_delete=models.CASCADE, related_name='certificate_to_be_viewed', null=True, blank=True)
     verifying_entity                = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='entity_verifying_request')
     requesting_entity               = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='entity_requesting_verification')
+    escrow_transaction_related      = models.ForeignKey(EscrowTransactions, on_delete=models.CASCADE, related_name='escrow_transaction_related', null=True, blank=True)
     is_document_verification        = models.BooleanField(default=False)
     is_certificate_view             = models.BooleanField(default=False)
     verification_view_status        = models.BooleanField(default=False)

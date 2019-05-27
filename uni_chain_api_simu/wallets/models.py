@@ -41,6 +41,7 @@ class EscrowTransactions(models.Model):
     amount_initiated            = models.DecimalField(max_digits=20, decimal_places=3, default=0)
     is_document_verification    = models.BooleanField(default=False)
     is_certificate_view         = models.BooleanField(default=False)
+    escrow_active               = models.BooleanField(default=True)
     date_initiated              = models.DateTimeField(auto_now_add=True)
     date_transferred            = models.DateTimeField(auto_now_add=False, null=True, blank=True)
 
