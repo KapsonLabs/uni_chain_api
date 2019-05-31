@@ -16,7 +16,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, FileUploadParser
 from accounts.permissions import StudentPermissions, EmployerPermissions, InstitutionAdministratorPermissions
 from wallets.models import Wallet, WalletTransactions, PayTokens, EscrowTransactions
 from .models import CertificateFeesSettings, CertificateViewRequests, Documents, Certificate
-from .serializers import DocumentRequestVerificationSerializer, DocumentUploadSerializer, AddressSerializer, CertificateUploadSerializer, CertificateDetailSerializer
+from .serializers import DocumentRequestVerificationSerializer, DocumentUploadSerializer, AddressSerializer, CertificateUploadSerializer, CertificateDetailSerializer, CertificateGrantAccessSerializer, CertificateGrantedAccessSerializer
 from wallets.serializers import EscrowTransactionsSerializer, EscrowTransactionDetailSerializer, DocumentVerificationRequestSerializer, WalletTransactionsSerializer, DocumentVerificationRequestDataSerializer, WalletTransactionsSerializer
 
 from wallets.helpers import generate_pay_id, generate_transaction_id, decode_pay_id
@@ -166,70 +166,139 @@ class VerifiedCertificateUpload(APIView):
 
         certificate = CertificateUploadSerializer(data=certificate_data)
         if certificate.is_valid():
-            try:
-                #change document status being verified
-                related_document = CertificateViewRequests.objects.get(id=int(document_id))
+            #try:
+            #change document status being verified
+            related_document = CertificateViewRequests.objects.get(id=int(document_id))
 
-                if related_document.verification_view_status == False:
-                
-                    document_status_update = {
-                            "verification_view_status": True,
-                        }
-
-                    CertificateViewRequests.objects.update_or_create(
-                        id=related_document.pk, defaults=document_status_update)
-
-                    #move money from escrow to the wallet address of the institution
-                    escrow_transaction = EscrowTransactions.objects.get(pk=related_document.escrow_transaction_related.pk)
-
-                    escrow_transaction_update = {
-                        "escrow_active": False,
-                        "date_transferred":datetime.datetime.now()
+            if related_document.verification_view_status == False:
+            
+                document_status_update = {
+                        "verification_view_status": True,
                     }
 
-                    EscrowTransactions.objects.update_or_create(
-                        id=escrow_transaction.pk, defaults=escrow_transaction_update)
+                CertificateViewRequests.objects.update_or_create(
+                    id=related_document.pk, defaults=document_status_update)
 
-                    #add transaction to signal movement of the money
+                #move money from escrow to the wallet address of the institution
+                escrow_transaction = EscrowTransactions.objects.get(pk=related_document.escrow_transaction_related.pk)
+
+                escrow_transaction_update = {
+                    "escrow_active": False,
+                    "date_transferred":datetime.datetime.now()
+                }
+
+                EscrowTransactions.objects.update_or_create(
+                    id=escrow_transaction.pk, defaults=escrow_transaction_update)
+
+                #add transaction to signal movement of the money
+                transaction = {
+                        "output_wallet_address":escrow_transaction.output_wallet_address.pk,
+                        "input_wallet_address":escrow_transaction.input_wallet_address.pk,
+                        "transaction_type":escrow_transaction.transaction_type,
+                        "transaction_id":str(generate_transaction_id()),
+                        "transaction_amount":escrow_transaction.amount_initiated,
+                    }
+
+                wallet_transaction = WalletTransactionsSerializer(data=transaction)
+                wallet_transaction.is_valid(raise_exception=True)
+                wallet_transaction.save()
+
+                #create the certificate and return the link
+                certificate.save(certificate_owner=escrow_transaction.output_wallet_address)
+
+                #2 calls are being made to the database, This should be fixed
+                certificate_to_update = Certificate.objects.get(pk=certificate.data['id'])
+
+                #create certificate_unique_hash
+                unique_string_nonce = generate_transaction_id()
+                certificate_unique_hash = generate_certificate_link(escrow_transaction.output_wallet_address, escrow_transaction.input_wallet_address, unique_string_nonce, certificate_to_update.student_number)
+
+                certificate_detail_update = {
+                    "unique_string_nonce": str(unique_string_nonce),
+                    "certificate_unique_hash":certificate_unique_hash,
+                    "verified_by":escrow_transaction.input_wallet_address
+                }
+
+                Certificate.objects.update_or_create(
+                    id=certificate_to_update.pk, defaults=certificate_detail_update)
+
+                certificate_to_detail = Certificate.objects.get(pk=certificate.data['id'])
+                certificate_to_detail_json = CertificateDetailSerializer(certificate_to_detail)
+
+                data_dict = {"status":200, "data":{"certificate_link":certificate_to_detail_json.data, "transaction_details":wallet_transaction.data}}
+                return Response(data_dict, status=status.HTTP_200_OK)
+            else:
+                return Response({"status":400, "error":"Document was already verified"},status=status.HTTP_404_NOT_FOUND)
+            # except:
+            #     return Response({"status":404, "error":"Document doesnt exist"},status=status.HTTP_404_NOT_FOUND)
+        return Response(certificate.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CertificateGrantRequest(APIView):
+
+    permission_classes = (permissions.IsAuthenticated, EmployerPermissions)
+
+    def post(self, request):
+
+        certificate_grant = CertificateGrantAccessSerializer(data=request.data)
+        if certificate_grant.is_valid():
+            try:
+                related_certificate = Certificate.objects.get(certificate_unique_hash=certificate_grant.data['verified_link'])
+
+                #verify provided data.
+                print(related_certificate.certificate_owner)
+                compare_hash = generate_certificate_link(related_certificate.certificate_owner.wallet_address, related_certificate.verified_by.wallet_address, related_certificate.unique_string_nonce, certificate_grant.data['student_number'])
+
+                # print(compare_hash)
+                if compare_hash == certificate_grant.data['verified_link']:
+
+                    #move the money to the institution wallet
+                    employer_wallet     = Wallet.objects.get(wallet_address=certificate_grant.data['wallet_address'])
+
+                    institution_wallet   =  Wallet.objects.get(wallet_address=related_certificate.verified_by.wallet_address)
+
+                    employer_wallet_update = {
+                        "wallet_balance": float(employer_wallet.wallet_balance)-float(5000),
+                    }
+
+                    institution_amount_update = {
+                        "wallet_balance": float(institution_wallet.wallet_balance)+float(5000),
+                    }
+
+                    Wallet.objects.update_or_create(
+                                id=employer_wallet.pk, defaults=employer_wallet_update)
+
+                    Wallet.objects.update_or_create(
+                                id=institution_wallet.pk, defaults=institution_amount_update)
+
+                    related_wallet_updated = Wallet.objects.get(wallet_address=certificate_grant.data['wallet_address'])
+
                     transaction = {
-                            "output_wallet_address":escrow_transaction.output_wallet_address.pk,
-                            "input_wallet_address":escrow_transaction.input_wallet_address.pk,
-                            "transaction_type":escrow_transaction.transaction_type,
-                            "transaction_id":str(generate_transaction_id()),
-                            "transaction_amount":escrow_transaction.amount_initiated,
-                        }
+                        "output_wallet_address":employer_wallet.pk,
+                        "input_wallet_address":institution_wallet.pk,
+                        "transaction_type":'VIEWING',
+                        "transaction_id":str(generate_transaction_id()),
+                        "transaction_amount":5000,
+                    }
 
                     wallet_transaction = WalletTransactionsSerializer(data=transaction)
                     wallet_transaction.is_valid(raise_exception=True)
                     wallet_transaction.save()
 
-                    #create the certificate and return the link
-                    certificate.save(certificate_owner=escrow_transaction.output_wallet_address)
+                    certificate_granted_access = CertificateGrantedAccessSerializer(related_certificate)
 
-                    #2 calls are being made to the database, This should be fixed
-                    certificate_to_update = Certificate.objects.get(pk=certificate.data['id'])
-
-                    #create certificate_unique_hash
-                    unique_string_nonce = generate_transaction_id()
-                    certificate_unique_hash = generate_certificate_link(escrow_transaction.output_wallet_address, escrow_transaction.input_wallet_address, unique_string_nonce, certificate_to_update.student_number)
-
-                    certificate_detail_update = {
-                        "unique_string_nonce": str(unique_string_nonce),
-                        "certificate_unique_hash":certificate_unique_hash
-                    }
-
-                    Certificate.objects.update_or_create(
-                        id=certificate_to_update.pk, defaults=certificate_detail_update)
-
-                    certificate_to_detail = Certificate.objects.get(pk=certificate.data['id'])
-                    certificate_to_detail_json = CertificateDetailSerializer(certificate_to_detail)
-
-                    data_dict = {"status":200, "data":{"certificate_link":certificate_to_detail_json.data, "transaction_details":wallet_transaction.data}}
+                    data_dict = {"status":200, "data":{"certificate_view":certificate_granted_access.data, "transaction_details":wallet_transaction.data}}
                     return Response(data_dict, status=status.HTTP_200_OK)
+
                 else:
-                    return Response({"status":400, "error":"Document was already verified"},status=status.HTTP_404_NOT_FOUND)
+                    return Response({"status":400, "error":"Link is not owned by the said student"},status=status.HTTP_404_NOT_FOUND)
+
             except:
-                return Response({"status":404, "error":"Document doesnt exist"},status=status.HTTP_404_NOT_FOUND)
-        return Response(certificate.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"status":404, "error":"This link does not exist, Just arrest that man"},status=status.HTTP_404_NOT_FOUND)
+
+            # data_dict = {"status":200, "data":certificate_grant.data}
+            # return Response(data_dict, status=status.HTTP_200_OK)
+        return Response(certificate_grant.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 

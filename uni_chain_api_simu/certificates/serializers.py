@@ -63,3 +63,18 @@ class CertificateDetailSerializer(serializers.ModelSerializer):
         model = Certificate
         fields = ('certificate_unique_hash', )
 
+
+class CertificateGrantAccessSerializer(serializers.Serializer):
+    """
+    A serializer to request permission to view a document
+    """
+    wallet_address          = serializers.CharField(max_length=255)
+    student_name            = serializers.CharField(max_length=255)
+    student_number          = serializers.CharField(max_length=255)   
+    verified_link           = serializers.CharField(max_length=255)
+
+class CertificateGrantedAccessSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Certificate
+        fields = ('certificate_link', )
+
