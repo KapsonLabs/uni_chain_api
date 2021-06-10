@@ -1,7 +1,7 @@
 asn1crypto==0.24.0
 base58==1.0.3
 cffi==1.12.3
-Django==2.2.1
+Django==2.2.24
 django-rest-framework==0.1.0
 djangorestframework==3.9.3
 djangorestframework-jwt==1.11.0
